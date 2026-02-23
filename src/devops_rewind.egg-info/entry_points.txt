@@ -1,0 +1,2 @@
+[console_scripts]
+devops-rewind = devops_rewind.cli:main

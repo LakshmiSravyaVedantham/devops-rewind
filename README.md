@@ -1,0 +1,255 @@
+# devops-rewind — Terminal Session Debugger with Rewind & Breakpoints
+
+[![CI](https://github.com/sravyalu/devops-rewind/actions/workflows/ci.yml/badge.svg)](https://github.com/sravyalu/devops-rewind/actions/workflows/ci.yml)
+[![Python Versions](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12-blue)](https://pypi.org/project/devops-rewind/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
+> **When your deploy fails at step 47, rewind to step 45 and try a different path.**
+
+`devops-rewind` records every command you run in a terminal session, lets you
+set breakpoints on specific commands or error conditions, and gives you a
+time-machine-style rewind so you can jump back to any point and branch off a
+new path — without starting over.
+
+---
+
+## Quick Install
+
+```bash
+pip install devops-rewind
+```
+
+Or install from source:
+
+```bash
+git clone https://github.com/sravyalu/devops-rewind.git
+cd devops-rewind
+pip install -e ".[dev]"
+```
+
+---
+
+## Quick Start
+
+```bash
+# Start recording a session named "my-deploy"
+devops-rewind record my-deploy
+
+# Inside the recorder prompt, run your usual commands:
+[0] /app $ git pull
+[1] /app $ make build
+[2] /app $ make test
+[3] /app $ make deploy    # <- this fails!
+exit
+
+# Rewind to step 1 and see the state at that point
+devops-rewind rewind my-deploy 1
+
+# Branch from step 1 to try a different deploy approach
+devops-rewind branch my-deploy 1 --exec
+
+# Replay the full session to understand what happened
+devops-rewind replay my-deploy --step
+
+# Compare your original session vs the branch
+devops-rewind diff my-deploy my-deploy-branch-1
+
+# Export the successful branch as a shell script
+devops-rewind export my-deploy-branch-1 --format sh > fixed-deploy.sh
+```
+
+---
+
+## Features
+
+### Session Recording
+Record all terminal commands and their outputs, exit codes, timestamps, and working directories — one command at a time in a custom interactive prompt.
+
+```
+devops-rewind record [NAME] [--shell /bin/zsh]
+```
+
+### Replay
+Replay a recorded session in your terminal. Control speed, step through
+manually, or jump to a specific range.
+
+```
+devops-rewind replay SESSION_ID [--speed 2.0] [--step] [--from 5] [--to 20]
+```
+
+### Rewind
+Jump to any step in a session and inspect the exact state at that point —
+the command, its output, the working directory, and a summary of prior failures.
+
+```
+devops-rewind rewind SESSION_ID STEP [--exec]
+```
+
+### Breakpoints
+Set breakpoints that trigger on a specific step number, a command regex pattern,
+or any non-zero exit code. Use them to pause replay at known failure points.
+
+```
+devops-rewind breakpoint add SESSION_ID 47
+devops-rewind breakpoint add SESSION_ID --pattern "kubectl apply"
+devops-rewind breakpoint add SESSION_ID --on-error
+devops-rewind breakpoint list SESSION_ID
+devops-rewind breakpoint remove SESSION_ID BP_ID
+```
+
+### Branching
+Fork a session from any step into a new branch that inherits all history up to
+that point. Record new commands from there without losing the original.
+
+```
+devops-rewind branch SESSION_ID STEP [--name my-fix] [--exec]
+```
+
+### Diff
+Compare two sessions side-by-side. The diff engine highlights the exact step
+where the sessions diverge and shows the command/output differences.
+
+```
+devops-rewind diff SESSION_A SESSION_B [--from 5]
+```
+
+### Export
+Export any session as a runnable shell script, a Markdown document, or raw JSON.
+
+```
+devops-rewind export SESSION_ID --format sh        > deploy.sh
+devops-rewind export SESSION_ID --format markdown  > report.md
+devops-rewind export SESSION_ID --format json      > session.json
+```
+
+### Session Management
+```
+devops-rewind list [--limit 10] [--format table|json]
+devops-rewind delete SESSION_ID
+devops-rewind version
+```
+
+---
+
+## How It Works
+
+```
+                        ┌─────────────────────────────────┐
+                        │    devops-rewind record          │
+                        │                                  │
+                        │  [0] $ git pull       OK         │
+                        │  [1] $ make build     OK         │
+                        │  [2] $ make test      OK         │
+                        │  [3] $ make deploy    FAIL(1)    │ <── breakpoint
+                        └────────────────┬────────────────┘
+                                         │ .rewind(3)
+                        ┌────────────────▼────────────────┐
+                        │    devops-rewind rewind 3        │
+                        │                                  │
+                        │  Shows state at step 3:          │
+                        │  cwd, prior failures, output     │
+                        └────────────────┬────────────────┘
+                                         │ .branch(1)
+                        ┌────────────────▼────────────────┐
+                        │   New session (branch)           │
+                        │   History: steps 0,1             │
+                        │  [2] $ make deploy-staging  OK   │  <── new path
+                        │  [3] $ make promote         OK   │
+                        └─────────────────────────────────┘
+                                         │
+                        ┌────────────────▼────────────────┐
+                        │   devops-rewind diff             │
+                        │   original  vs  branch           │
+                        │   Step 2: [make deploy]          │
+                        │          vs [make deploy-staging]│
+                        └─────────────────────────────────┘
+```
+
+All sessions and steps are stored in SQLite at `~/.devops-rewind/sessions.db`,
+so everything persists across terminal sessions.
+
+---
+
+## Comparison with Existing Tools
+
+| Feature | `script` | `asciinema` | **devops-rewind** |
+|---|---|---|---|
+| Records terminal output | Yes | Yes | Yes |
+| Captures exit codes | No | No | **Yes** |
+| Step-by-step replay | No | No | **Yes** |
+| Rewind to any step | No | No | **Yes** |
+| Breakpoints | No | No | **Yes** |
+| Branch / fork session | No | No | **Yes** |
+| Diff two sessions | No | No | **Yes** |
+| Persistent storage | Files | Files | **SQLite** |
+| Export to shell script | Partial | No | **Yes** |
+
+---
+
+## Storage
+
+Sessions are stored in `~/.devops-rewind/sessions.db` (SQLite). You can back
+it up, inspect it with any SQLite client, or point to a custom path via the
+`Storage` class directly.
+
+---
+
+## Python API
+
+```python
+from devops_rewind import Session, SessionRecorder, SessionPlayer, Storage, branch_session
+
+storage = Storage()
+
+# Record
+session = Session.new("my-deploy")
+recorder = SessionRecorder(session=session, storage=storage)
+step = recorder.record_single("make build")
+
+# Replay
+player = SessionPlayer()
+player.replay(session, speed=2.0)
+
+# Rewind
+player.rewind(session, step=3)
+
+# Branch
+branch = branch_session(session, from_step=2, storage=storage)
+```
+
+---
+
+## Development
+
+```bash
+git clone https://github.com/sravyalu/devops-rewind.git
+cd devops-rewind
+python -m venv venv && source venv/bin/activate
+pip install -e ".[dev]"
+
+# Run tests
+pytest -v
+
+# Format & lint
+black src/ tests/
+isort src/ tests/
+flake8 src/ tests/ --max-line-length 120
+```
+
+---
+
+## Contributing
+
+Contributions are welcome. Please:
+
+1. Fork the repository
+2. Create a feature branch (`git checkout -b feature/my-feature`)
+3. Write tests for new functionality
+4. Ensure `pytest`, `black --check`, `isort --check-only`, and `flake8` all pass
+5. Submit a pull request
+
+---
+
+## License
+
+[MIT](LICENSE) — Copyright (c) 2024 sravyalu

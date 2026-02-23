@@ -1,0 +1,74 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "devops-rewind"
+version = "0.1.0"
+description = "Terminal session debugger with rewind and breakpoints"
+readme = "README.md"
+license = { text = "MIT" }
+authors = [{ name = "sravyalu" }]
+requires-python = ">=3.9"
+keywords = ["terminal", "session", "recorder", "rewind", "devops", "debugging", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Debuggers",
+    "Topic :: System :: Shells",
+    "Topic :: Terminals",
+]
+dependencies = [
+    "click>=8.0",
+    "rich>=13.0",
+    "python-dateutil>=2.8",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "black>=23.0",
+    "isort>=5.0",
+    "flake8>=6.0",
+]
+
+[project.scripts]
+devops-rewind = "devops_rewind.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/sravyalu/devops-rewind"
+Repository = "https://github.com/sravyalu/devops-rewind"
+Issues = "https://github.com/sravyalu/devops-rewind/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 120
+target-version = ["py39", "py310", "py311", "py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "--cov=devops_rewind --cov-report=term-missing -v"
+
+[tool.coverage.run]
+source = ["devops_rewind"]
+omit = ["tests/*"]
